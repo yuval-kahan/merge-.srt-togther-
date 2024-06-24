@@ -1,0 +1,93 @@
+import pandas as pd
+import tkinter as tk
+from tkinter import filedialog, messagebox
+
+def parse_srt(file_path):
+    with open(file_path, 'r', encoding='utf-8') as file:
+        content = file.readlines()
+
+    entries = []
+    entry = {}
+    for line in content:
+        line = line.strip()
+        if line.isdigit():
+            if entry:
+                entries.append(entry)
+                entry = {}
+            entry['index'] = int(line)
+        elif '-->' in line:
+            entry['timestamp'] = line
+        elif line:
+            entry['text'] = entry.get('text', '') + ' ' + line
+    if entry:
+        entries.append(entry)
+    
+    return pd.DataFrame(entries)
+
+def save_merged_srt(df, file_path):
+    with open(file_path, 'w', encoding='utf-8') as file:
+        for index, row in df.iterrows():
+            file.write(f"{row['index']}\n")
+            file.write(f"{row['timestamp']}\n")
+            file.write(f"{row['text'].strip()}\n")
+            file.write(f"{row['english_text'].strip()}\n")
+            file.write("\n")
+
+def merge_srt_files(hebrew_srt_path, english_srt_path, output_srt_path):
+    # Parse both SRT files
+    hebrew_srt = parse_srt(hebrew_srt_path)
+    english_srt = parse_srt(english_srt_path)
+
+    # Merge the two dataframes on the Hebrew timestamps
+    merged_srt = hebrew_srt.copy()
+    merged_srt['english_text'] = english_srt['text']
+
+    # Save the merged SRT to a new file
+    save_merged_srt(merged_srt, output_srt_path)
+
+def browse_file(entry):
+    filename = filedialog.askopenfilename(filetypes=[("SRT files", "*.srt"), ("All files", "*.*")])
+    entry.delete(0, tk.END)
+    entry.insert(0, filename)
+
+def save_file(entry):
+    filename = filedialog.asksaveasfilename(defaultextension=".srt", filetypes=[("SRT files", "*.srt"), ("All files", "*.*")])
+    entry.delete(0, tk.END)
+    entry.insert(0, filename)
+
+def on_merge():
+    hebrew_srt_path = hebrew_entry.get()
+    english_srt_path = english_entry.get()
+    output_srt_path = output_entry.get()
+
+    if not hebrew_srt_path or not english_srt_path or not output_srt_path:
+        messagebox.showerror("Error", "All fields must be filled out")
+        return
+
+    try:
+        merge_srt_files(hebrew_srt_path, english_srt_path, output_srt_path)
+        messagebox.showinfo("Success", "SRT files merged successfully")
+    except Exception as e:
+        messagebox.showerror("Error", f"Failed to merge SRT files: {e}")
+
+app = tk.Tk()
+app.title("SRT Merger")
+
+tk.Label(app, text="Hebrew SRT file").grid(row=0, column=0, padx=10, pady=10)
+hebrew_entry = tk.Entry(app, width=50)
+hebrew_entry.grid(row=0, column=1, padx=10, pady=10)
+tk.Button(app, text="Browse", command=lambda: browse_file(hebrew_entry)).grid(row=0, column=2, padx=10, pady=10)
+
+tk.Label(app, text="English SRT file").grid(row=1, column=0, padx=10, pady=10)
+english_entry = tk.Entry(app, width=50)
+english_entry.grid(row=1, column=1, padx=10, pady=10)
+tk.Button(app, text="Browse", command=lambda: browse_file(english_entry)).grid(row=1, column=2, padx=10, pady=10)
+
+tk.Label(app, text="Output SRT file").grid(row=2, column=0, padx=10, pady=10)
+output_entry = tk.Entry(app, width=50)
+output_entry.grid(row=2, column=1, padx=10, pady=10)
+tk.Button(app, text="Save As", command=lambda: save_file(output_entry)).grid(row=2, column=2, padx=10, pady=10)
+
+tk.Button(app, text="Merge", command=on_merge).grid(row=3, column=0, columnspan=3, pady=20)
+
+app.mainloop()
